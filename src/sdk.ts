@@ -115,6 +115,7 @@ export function wrapOpenAI(
       const wrapped = (async function* () {
         try {
           for await (const chunk of result) {
+            deltaEventCount += 1;
             if (firstChunkTime === null) firstChunkTime = Date.now();
             const content = chunk.choices?.[0]?.delta?.content;
             if (content) fullContent += content;

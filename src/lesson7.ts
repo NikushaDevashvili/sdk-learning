@@ -23,6 +23,7 @@ async function main() {
       { role: "user", content: "Count from 1 to 5, one number per line." },
     ],
     stream: true,
+    stream_options: { include_usage: true },
   });
 
   let fullText = "";
