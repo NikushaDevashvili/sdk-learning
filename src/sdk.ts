@@ -109,14 +109,21 @@ export function wrapOpenAI(
       let firstChunkTime: number | null = null;
       let fullContent = "";
       let usage: any = null;
+      let deltaEventCount = 0;
+      let cancelAtMs: number | null = null;
 
       const wrapped = (async function* () {
-        for await (const chunk of result) {
-          if (firstChunkTime === null) firstChunkTime = Date.now();
-          const content = chunk.choices?.[0]?.delta?.content;
-          if (content) fullContent += content;
-          if (chunk.usage) usage = chunk.usage;
-          yield chunk;
+        try {
+          for await (const chunk of result) {
+            if (firstChunkTime === null) firstChunkTime = Date.now();
+            const content = chunk.choices?.[0]?.delta?.content;
+            if (content) fullContent += content;
+            if (chunk.usage) usage = chunk.usage;
+            yield chunk;
+          }
+        } catch (err) {
+          cancelAtMs = Date.now() - startTimeStream;
+          throw err;
         }
         const endTime = Date.now();
         const event = {
@@ -130,6 +137,17 @@ export function wrapOpenAI(
           timeToFirstTokenMs:
             firstChunkTime !== null ? firstChunkTime - startTimeStream : null,
           streamingDurationMs: endTime - startTimeStream,
+          cancel_at_ms: cancelAtMs,
+          stream: {
+            first_token_ms:
+              firstChunkTime !== null ? firstChunkTime - startTimeStream : null,
+            last_token_ms: endTime - startTimeStream,
+            delta_event_count: deltaEventCount,
+          },
+          params: {
+            stream: requestParams.stream,
+            stream_options: requestParams.stream_options,
+          },
         };
         options.observa.capture(event);
       })();

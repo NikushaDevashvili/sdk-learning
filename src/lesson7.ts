@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { init, wrapOpenAI } from "./sdk.js";
+import "dotenv/config";
 
 const OBSERVA_API_URL =
   "https://webhook.site/0842db0f-1dba-4dd9-b9f2-27ca150e15a5";
