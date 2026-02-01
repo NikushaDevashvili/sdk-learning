@@ -1,3 +1,5 @@
+import { traceId } from "next/dist/trace/shared";
+
 export type InitConfig = {
   apiKey: string;
   apiUrl: string;
@@ -7,6 +9,26 @@ export function init(config: InitConfig) {
   const apiKey = config.apiKey;
   const apiUrl = config.apiUrl;
   const events: unknown[] = [];
+  const currentTraceId: string | null = null;
+  const currentSpanId: string | null = null;
+
+  function getCurrentTrace(): { traceId: string; spanId: string } | null {
+    if (currentTraceId !== null && currentSpanId !== null) {
+      return { traceId: currentTraceId, spanId: currentSpanId };
+    }
+    return null;
+  }
+
+  function startTrace(): string {
+    currentTraceId = crypto.randomUUID;
+    currentSpanId = crypto.randomUUID;
+    return currentTraceId;
+  }
+
+  function endTrace(): void {
+    currentTraceId = null;
+    currentSpanId = null;
+  }
 
   function capture(data: unknown) {
     events.push(data);
@@ -34,6 +56,21 @@ export function init(config: InitConfig) {
       return;
     }
 
+    function captureToolCall(data: {
+      toolCallId: string;
+      toolName: string;
+      toolCallArguments: string;
+      result?: any;
+      latencyMs: number;
+      status: "success" | "error";
+      errorMessage?: string;
+    }) {
+      const event = {
+        eventType: "tool_call",
+        traceId: getCurrentTrace()?.traceId ?? null,
+      };
+    }
+
     events.length = 0;
   }
 
@@ -42,7 +79,11 @@ export function init(config: InitConfig) {
     apiUrl,
     capture,
     flush,
+    startTrace,
+    endTrace,
+    getCurrentTrace,
     wrapOpenAI: wrapOpenAI,
+    captureToolCall,
   };
 }
 export function wrapOpenAI(
@@ -91,6 +132,16 @@ export function wrapOpenAI(
       const latencyMs = endTime - startTime;
       const content = result.choices?.[0]?.message?.content ?? null;
       const usage = result.usage ?? null;
+      const rawToolCalls = result.choices?.[0]?.message?.tool_calls ?? null;
+      const toolCalls = Array.isArray(rawToolCalls)
+        ? rawToolCalls.map((tc: any) => ({
+            id: tc.id,
+            type: tc.type ?? "function",
+            name: tc.function?.name ?? "unknown",
+            arguments: tc.function?.arguments ?? null,
+          }))
+        : null;
+
       const event = {
         traceId,
         spanId,
@@ -99,6 +150,7 @@ export function wrapOpenAI(
         response: content,
         usage,
         latencyMs,
+        toolCalls,
       };
       options.observa.capture(event);
       return result;
