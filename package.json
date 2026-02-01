@@ -1,0 +1,18 @@
+{
+  "name": "sdk-learning",
+  "version": "0.0.1",
+  "private": "true",
+  "type": "module",
+  "scripts": {
+    "run:lesson1": "tsx src/lesson1.ts",
+    "run:lesson2": "tsx src/lesson2.ts",
+    "run:lesson3": "tsx src/lesson3.ts",
+    "run:lesson4": "tsx src/lesson4.ts",
+    "run:lesson7": "tsx src/lesson7.ts"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "openai": "^6.17.0",
+    "tsx": "^4.21.0"
+  }
+}
