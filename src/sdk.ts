@@ -9,8 +9,8 @@ export function init(config: InitConfig) {
   const apiKey = config.apiKey;
   const apiUrl = config.apiUrl;
   const events: unknown[] = [];
-  const currentTraceId: string | null = null;
-  const currentSpanId: string | null = null;
+  let currentTraceId: string | null = null;
+  let currentSpanId: string | null = null;
 
   function getCurrentTrace(): { traceId: string; spanId: string } | null {
     if (currentTraceId !== null && currentSpanId !== null) {
@@ -20,8 +20,8 @@ export function init(config: InitConfig) {
   }
 
   function startTrace(): string {
-    currentTraceId = crypto.randomUUID;
-    currentSpanId = crypto.randomUUID;
+    currentTraceId = crypto.randomUUID();
+    currentSpanId = crypto.randomUUID();
     return currentTraceId;
   }
 
@@ -32,6 +32,59 @@ export function init(config: InitConfig) {
 
   function capture(data: unknown) {
     events.push(data);
+  }
+
+  function captureToolCall(data: {
+    toolCallId: string;
+    toolName: string;
+    toolCallArguments: string;
+    result?: any;
+    latencyMs: number;
+    status: "success" | "error";
+    errorMessage?: string;
+  }) {
+    const event = {
+      eventType: "tool_call",
+      traceId: getCurrentTrace()?.traceId ?? null,
+      spanId: getCurrentTrace()?.spanId ?? null,
+      ...data,
+    };
+    events.push(event);
+    console.log("[SDK] captured tool call:", event);
+  }
+
+  async function runTool<T>(
+    toolCallId: string,
+    name: string,
+    args: any,
+    fn: (args: any) => Promise<T>,
+  ): Promise<T> {
+    const start = Date.now();
+    try {
+      const result = await fn(args);
+      const latencyMs = Date.now() - start;
+      captureToolCall({
+        toolCallId,
+        toolName: name,
+        toolCallArguments: args,
+        result,
+        latencyMs,
+        status: "success",
+      });
+      return result;
+    } catch (err: any) {
+      const latencyMs = Date.now() - start;
+      captureToolCall({
+        toolCallId,
+        toolName: name,
+        toolCallArguments: args,
+        result: null,
+        latencyMs,
+        status: "error",
+        errorMessage: err?.message ?? String(err),
+      });
+      throw err;
+    }
   }
 
   async function flush() {
@@ -54,21 +107,6 @@ export function init(config: InitConfig) {
         response.statusText,
       );
       return;
-    }
-
-    function captureToolCall(data: {
-      toolCallId: string;
-      toolName: string;
-      toolCallArguments: string;
-      result?: any;
-      latencyMs: number;
-      status: "success" | "error";
-      errorMessage?: string;
-    }) {
-      const event = {
-        eventType: "tool_call",
-        traceId: getCurrentTrace()?.traceId ?? null,
-      };
     }
 
     events.length = 0;
